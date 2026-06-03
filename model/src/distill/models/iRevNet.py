@@ -191,11 +191,11 @@ def iRevNet4_32(**kwargs):
         affineBN=True, mult=4, nClasses=10
     )
 
-def iRevNet16x64(**kwargs):
+def iRevNet16x64(num_classes=100, **kwargs):
     return iRevNet(
         nBlocks=[4, 4, 4], nStrides=[1, 2, 2], nChannels=[16, 64, 256],
         in_shape=[16, 64, 64], init_ds=0, dropout_rate=0.1, 
-        affineBN=True, mult=4, nClasses=100
+        affineBN=True, mult=4, nClasses=num_classes
     )
 
 def iRevNet48x64(**kwargs):

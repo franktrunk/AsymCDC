@@ -83,13 +83,13 @@ def main():
     ])
 
     if(args.dataset == 'cifar10'):
-        trainset = torchvision.datasets.CIFAR10(root='/home/mzq/wl/dataset', train=True, download=True, transform=transform_train)
-        testset = torchvision.datasets.CIFAR10(root='/home/mzq/wl/dataset', train=False, download=False, transform=transform_test)
+        trainset = torchvision.datasets.CIFAR10(root='/hdd/wyt/dataset', train=True, download=True, transform=transform_train)
+        testset = torchvision.datasets.CIFAR10(root='/hdd/wyt/dataset', train=False, download=False, transform=transform_test)
         nClasses = 10
         in_shape = [3, 32, 32]
     elif(args.dataset == 'cifar100'):
-        trainset = torchvision.datasets.CIFAR100(root='/home/mzq/wl/dataset', train=True, download=True, transform=transform_train)
-        testset = torchvision.datasets.CIFAR100(root='/home/mzq/wl/dataset', train=False, download=False, transform=transform_test)
+        trainset = torchvision.datasets.CIFAR100(root='/hdd/wyt/dataset', train=True, download=True, transform=transform_train)
+        testset = torchvision.datasets.CIFAR100(root='/hdd/wyt/dataset', train=False, download=False, transform=transform_test)
         nClasses = 100
         in_shape = [3, 32, 32]
 
