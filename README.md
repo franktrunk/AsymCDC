@@ -22,7 +22,7 @@ The knowledge distillation is based on RepDistiller. To distill a decoder, just 
 ```shell
 cd model/src/distill
 
-python train_decoder.py --path_t ./save/models/iRevNet18/speech_irevnet_t.t7 \
+python train_decoder.py --path_t ../train/checkpoint/cifar10/i-revnet-55.t7  \
                         --dataset cifar10 \
                         --distill kd \
                         --model_s iRevNet16x64 \
@@ -35,8 +35,8 @@ python train_decoder.py --path_t ./save/models/iRevNet18/speech_irevnet_t.t7 \
                         --epochs 210 \
                         --lr_decay_epochs 120,150,180 \
                         --ec_k 2 \
-                        --batch_size 128 \
-                        --et
+                        --batch_size 128 
+                        
 ```
 
 ## Run Cloud Latency Experiments
