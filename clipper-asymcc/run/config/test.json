@@ -1,0 +1,17 @@
+{
+    "ec_k": 1,
+    "worker_ips": ["192.168.4.23"],
+    "local_ip": "192.168.4.23",
+    "workerThrd_num": 1,
+    "input_num": 100,
+    "encoder": "linear",
+    "decoder": "distill",
+    "decoder_model": "iRevNet16x64",
+    "dataset": "cifar10",
+    "model": "irevnet18",
+    "model_checkpoint": "/home/wyt/AsymCDC/model/src/train/checkpoint/cifar10/i-revnet-55.t7",
+    "decoder_checkpoint": "/home/wyt/AsymCDC/model/src/distill/save/models/iRevNet18/S:iRevNet16x64_T:cifar10_cifar10_kd_r:0.1_a:0.9_b:0.0_1/iRevNet16x64_best.pth",
+    "fail_rate": 0.15,
+    "query_rate": 150,
+    "output_path":"./output.txt"
+}

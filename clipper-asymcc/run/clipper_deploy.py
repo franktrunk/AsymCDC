@@ -238,14 +238,53 @@ def load_irevnet_model(model_path):
                     in_shape=[3, 32, 32], mult=4
         )
     
-        model = torch.nn.DataParallel(model) 
-    
-        model.load_state_dict(torch.load(model_path))
+        # 加载检查点（绕过 DataParallel 的 module. 前缀问题）
+        # 1. 如果检查点包含元数据字典（如 {"model": state_dict/model_obj, "acc": ..., "epoch": ...}），提取 state_dict
+        # 2. 如果 checkpoint['model'] 是一个模型对象（而非 state_dict），调用 .state_dict() 获取权重
+        # 3. 去掉 "module." 前缀以适配 DataParallel 保存的权重
+        checkpoint = torch.load(model_path, map_location='cpu')
+        if isinstance(checkpoint, dict) and 'model' in checkpoint:
+            model_data = checkpoint['model']
+        else:
+            model_data = checkpoint
+        
+        # 如果 model_data 是模型对象（DataParallel），获取其 state_dict
+        if hasattr(model_data, 'state_dict'):
+            state_dict = model_data.state_dict()
+        else:
+            state_dict = model_data
+        
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith('module.'):
+                new_state_dict[k[7:]] = v  # 去掉 "module." 前缀
+            else:
+                new_state_dict[k] = v
+        
+        model.load_state_dict(new_state_dict)
         print("=> loaded checkpoint '{}'".format(model_path))
         return model
     else:
         print("=> no checkpoint found at '{}'".format(model_path))
         return None
+
+# def load_irevnet_model(model_path):
+#     if os.path.isfile(model_path):
+#         print("=> loading checkpoint '{}'".format(model_path))
+#         model = iRevNet(nBlocks=[18, 18, 18], nStrides=[1, 2, 2],
+#                     nChannels=[16, 64, 256], nClasses=10,
+#                     init_ds=0, dropout_rate=0.1, affineBN=True,
+#                     in_shape=[3, 32, 32], mult=4
+#         )
+#     
+#         model = torch.nn.DataParallel(model) 
+#     
+#         model.load_state_dict(torch.load(model_path))
+#         print("=> loaded checkpoint '{}'".format(model_path))
+#         return model
+#     else:
+#         print("=> no checkpoint found at '{}'".format(model_path))
+#         return None
 
 
 class ClipperDeployer:

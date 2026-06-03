@@ -8,4 +8,10 @@ model/src/distill/helper/__pycache__/
 model/src/distill/utils/__pycache__/
 model/src/train/models/__pycache__/
 model/src/distill/logs/
-
+clipper-asymcc/clipper_admin/clipper_admin/__pycache__/
+clipper-asymcc/clipper_admin/clipper_admin/__pycache__/
+clipper-asymcc/clipper_admin/clipper_admin/deployers/__pycache__/
+clipper-asymcc/clipper_admin/clipper_admin/docker/__pycache__/
+clipper-asymcc/clipper_admin/clipper_admin/docker/logging/__pycache__/
+clipper-asymcc/clipper_admin/clipper_admin/kubernetes/__pycache__/
+clipper-asymcc/clipper_admin/clipper_admin.egg-info/
