@@ -13,6 +13,7 @@ import time
 import random
 import numpy as np
 import torch
+torch.backends.cudnn.enabled = False
 import io
 from PIL import Image
 import base64

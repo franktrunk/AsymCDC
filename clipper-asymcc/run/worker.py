@@ -41,7 +41,7 @@ def clipperRequest(addr, data):
         'input': base64.b64encode(data).decode()
     })
     headers = {'Content-type': 'application/json'}
-    return requests.post(url, headers=headers, data=req_json)
+    return requests.post(url, headers=headers, data=req_json, timeout=30)
 
 def encodeTask(input, coder):
     print("=========encodeTask start=========")
@@ -77,22 +77,29 @@ def inferTask(input, conf, clipperid):
     out_list = []
     outbij_list = []
     
-    # req_Thrds = []
     for i, data in enumerate(data_list):
         chosen = random.randint(0, conf.num_worker-1)
         if clipperid >=0:
             chosen = clipperid
         chosen_ip = conf.cfg['worker_ips'][chosen]
         start = time.time()
-        resp = clipperRequest(chosen_ip, data)
+        try:
+            resp = clipperRequest(chosen_ip, data)
+        except Exception as e:
+            print("clipperRequest failed: {}".format(e))
+            raise
         end = time.time()
         print("Inference time: {} ms".format(float(end - start) * 1000.0))
         INFO.add_infertime(float(end - start) * 1000.0 + ecodeTime)
         # req_Thrds.append(global_var.clipper_req_pool.submit(clipperRequest, chosen_ip, data))
     
-    # for i, _ in enumerate(data_list):
-        # resp = req_Thrds[i].result()
-        json_output = eval(resp.json()["output"])
+        # for i, _ in enumerate(data_list):
+            # resp = req_Thrds[i].result()
+        try:
+            json_output = eval(resp.json()["output"])
+        except Exception as e:
+            print("resp.json() parse failed: {}".format(e))
+            raise
         tensor_out = pickle.loads(json_output[0])  #[1, 10]
         tensor_outbij = pickle.loads(json_output[1])  #[1, 512, 8, 8]
         

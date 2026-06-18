@@ -38,7 +38,14 @@ class Coder:
             path = conf.cfg['decoder_checkpoint']
             print("=> loading distill model '{}'".format(path))
             model = coder_models[conf.cfg['decoder_model']]()
-            model.load_state_dict(torch.load(path))
+            checkpoint = torch.load(path)
+            # checkpoint may be a dict with 'model' key containing a model object or state_dict
+            model_obj = checkpoint.get('model', checkpoint)
+            if isinstance(model_obj, torch.nn.Module):
+                state_dict = model_obj.state_dict()
+            else:
+                state_dict = model_obj
+            model.load_state_dict(state_dict)
             if torch.cuda.is_available():
                 model = model.cuda()
             print("=> loaded distill model '{}'".format(path))

@@ -262,6 +262,14 @@ def load_irevnet_model(model_path):
                 new_state_dict[k] = v
         
         model.load_state_dict(new_state_dict)
+        
+        # 修复旧版本 PyTorch 模型缺少的 padding_mode 属性
+        import torch.nn as nn
+        for module in model.modules():
+            if isinstance(module, nn.Conv2d):
+                if not hasattr(module, 'padding_mode'):
+                    module.padding_mode = 'zeros'
+        
         print("=> loaded checkpoint '{}'".format(model_path))
         return model
     else:
@@ -300,8 +308,11 @@ class ClipperDeployer:
             clipper_conn.start_clipper(cache_size=1)  # Disable PredictionCache
         except ClipperException:
             clipper_conn.connect()
-            clipper_conn.stop_all()
-            subprocess.call(["docker rm -f $(docker ps -a -q) && docker image prune -f"], shell=True)
+            clipper_conn.stop_all()  # stop_all() already cleans up Clipper containers
+            subprocess.call([r'''docker ps -a --format "{{.ID}} {{.Names}}" | \
+                             grep -E "query_frontend|mgmt_frontend|frontend_exporter|sum-model|redis-|metric_frontend|prometheus" | \
+                             awk '{print $1}' | xargs -r docker rm -f
+                             '''], shell=True)            
             clipper_conn = ClipperConnection(DockerContainerManager())
             clipper_conn.start_clipper(cache_size=1)  # Disable PredictionCache
 

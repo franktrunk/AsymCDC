@@ -15,3 +15,7 @@ clipper-asymcc/clipper_admin/clipper_admin/docker/__pycache__/
 clipper-asymcc/clipper_admin/clipper_admin/docker/logging/__pycache__/
 clipper-asymcc/clipper_admin/clipper_admin/kubernetes/__pycache__/
 clipper-asymcc/clipper_admin/clipper_admin.egg-info/
+scp.md
+clipper-asymcc/run/__pycache__/
+clipper-asymcc/run/models/__pycache__/
+clipper-asymcc/run/output.txt
