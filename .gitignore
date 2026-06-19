@@ -19,3 +19,5 @@ scp.md
 clipper-asymcc/run/__pycache__/
 clipper-asymcc/run/models/__pycache__/
 clipper-asymcc/run/output.txt
+clipper-asymcc/run/output_total_time.txt
+clipper-asymcc/run/config/
