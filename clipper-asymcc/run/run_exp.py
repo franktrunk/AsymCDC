@@ -100,3 +100,5 @@ if __name__ == "__main__":
     print("total costs: {} ms".format(float(end-start)*1000.0))
     INFO.set_totaltime(float(end - start) * 1000.0)
     INFO.output()
+    with open('./output_total_time.txt', 'a') as f:
+        f.write("total time: {} ms\n".format(INFO.totalTime))
