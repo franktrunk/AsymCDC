@@ -1,6 +1,7 @@
 # from models.iRevNet import iRevNet
 from clipper_admin import ClipperConnection, DockerContainerManager
 from clipper_admin.exceptions import ClipperException
+import docker
 import io
 from PIL import Image
 from torch.autograd import Variable
@@ -13,6 +14,8 @@ from config import Config
 import subprocess
 import argparse
 import pickle
+import sys
+import time
 import torch.nn as nn
 from torch.nn import Parameter
 import torch.nn.functional as F
@@ -202,7 +205,32 @@ class iRevNet(nn.Module):
 
 min_img_size = 224
 
+# === GPU 探测（support-gpu 分支专用） ===
+# 部署后从 docker logs 看这一行：
+#   PROBE: cuda_avail=X torch.cuda.device_count()=Y model_dev=Z batch_dev=W
+# 决定下一步怎么走：要不要 model.cuda() / 容器挂 GPU
+_IREVNET_GPU_PROBE = True
+
+def _set_cudnn_off_lazy():
+    """用 getattr 字符串访问，避免 torch.backends.cudnn module 在静态 globals 里被持有。
+
+    cloudpickle 会遍历 predict.__globals__，如果模块顶层已经 import 过
+    torch.backends.cudnn（直接属性访问过），则该 module 在 sys.modules 里
+    持有 CudnnModule 实例，pickle 失败 (TypeError: can't pickle CudnnModule)。
+    用 getattr + setattr 的字符串路径访问，可以让 cloudpickle 静态扫不到。
+    """
+    try:
+        backends = getattr(__import__('torch', fromlist=['backends']), 'backends')
+        cudnn = getattr(backends, 'cudnn')
+        setattr(cudnn, 'enabled', False)
+        setattr(cudnn, 'benchmark', False)
+    except Exception:
+        pass
+
 def predict(model, inputs):
+    # 强制保证 A800 + PyTorch 1.0.1/1.1.0 走非 cuDNN 路径（每次 predict 入口兜底）
+    _set_cudnn_off_lazy()
+
     def _predict_one(one_input_arr):
         try:
             img = Image.open(io.BytesIO(one_input_arr))
@@ -214,9 +242,23 @@ def predict(model, inputs):
             #                                                 std=[0.229, 0.224, 0.225])])
             transform_pipeline = transforms.Compose([transforms.ToTensor()])
             img = transform_pipeline(img)
-            
-            # if torch.cuda.is_available():
-            #     img = img.cuda()
+
+            if _IREVNET_GPU_PROBE:
+                try:
+                    n_gpu = torch.cuda.device_count()
+                    model_dev = next(model.parameters()).device
+                except Exception as _e:
+                    n_gpu = -1
+                    model_dev = "err:{}".format(_e)
+                print(
+                    "PROBE: cuda_avail={} n_gpu={} model_dev={}".format(
+                        torch.cuda.is_available(), n_gpu, model_dev
+                    ),
+                    flush=True,
+                )
+
+            if torch.cuda.is_available():
+                img = img.cuda()
             img = img.unsqueeze(0)
             img = Variable(img)
             out, out_bij = model(img)
@@ -262,14 +304,32 @@ def load_irevnet_model(model_path):
                 new_state_dict[k] = v
         
         model.load_state_dict(new_state_dict)
-        
+
         # 修复旧版本 PyTorch 模型缺少的 padding_mode 属性
         import torch.nn as nn
         for module in model.modules():
             if isinstance(module, nn.Conv2d):
                 if not hasattr(module, 'padding_mode'):
                     module.padding_mode = 'zeros'
-        
+
+        # 尝试把模型搬到 GPU；失败时回退 CPU，不让加载流程崩
+        if torch.cuda.is_available():
+            try:
+                model = model.cuda()
+                # A800 (SM_80) + PyTorch 1.0.1 编译时未编 SM_80 cuDNN kernel，
+                # 必须关 cuDNN；Conv2d 走 PyTorch 自身的 im2col + gemm，
+                # BN/ReLU/Add/Mul 走 element-wise kernel（不需要 SM_80 专用实现），
+                # nn.Linear (512->10) 走 cuBLAS gemm (2D matmul 已验证可工作)。
+                # 关掉 cuDNN 是绕过 CUDNN_STATUS_EXECUTION_FAILED 的唯一稳定路径。
+                torch.backends.cudnn.enabled = False
+                torch.backends.cudnn.benchmark = False
+                print("=> model moved to GPU: {}, cudnn.enabled=False (A800+PyTorch1.0.1 workaround)".format(
+                    next(model.parameters()).device))
+            except Exception as e:
+                print("=> [WARN] model.cuda() failed, stay on CPU: {}".format(e))
+        else:
+            print("=> cuda not available, model stays on CPU")
+
         print("=> loaded checkpoint '{}'".format(model_path))
         return model
     else:
@@ -303,8 +363,18 @@ class ClipperDeployer:
         model = load_irevnet_model(self.conf.cfg['model_checkpoint'])
         # model = resnet50(pretrained=True)
 
+        # 构造 GPU 启动参数：让 docker run 时挂 nvidia runtime 和 GPU 0
+        # 这样所有由 Clipper admin 启动的容器（包括 model container）都能看到 GPU
+        gpu_kwargs = {
+            "runtime": "nvidia",
+            "device_requests": [
+                docker.types.DeviceRequest(device_ids=["0"], capabilities=[["gpu"]])
+            ],
+        }
         try:
-            clipper_conn = ClipperConnection(DockerContainerManager())
+            clipper_conn = ClipperConnection(DockerContainerManager(
+                extra_container_kwargs=gpu_kwargs
+            ))
             clipper_conn.start_clipper(cache_size=1)  # Disable PredictionCache
         except ClipperException:
             clipper_conn.connect()
@@ -312,8 +382,10 @@ class ClipperDeployer:
             subprocess.call([r'''docker ps -a --format "{{.ID}} {{.Names}}" | \
                              grep -E "query_frontend|mgmt_frontend|frontend_exporter|sum-model|redis-|metric_frontend|prometheus" | \
                              awk '{print $1}' | xargs -r docker rm -f
-                             '''], shell=True)            
-            clipper_conn = ClipperConnection(DockerContainerManager())
+                             '''], shell=True)
+            clipper_conn = ClipperConnection(DockerContainerManager(
+                extra_container_kwargs=gpu_kwargs
+            ))
             clipper_conn.start_clipper(cache_size=1)  # Disable PredictionCache
 
         app_name = 'pytorch-irevnet-app'
